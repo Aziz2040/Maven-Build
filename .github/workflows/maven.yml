@@ -1,35 +1,70 @@
-name: Java CI with Maven 
- 
-on: 
-  push: 
-concurrency: 
-  group: environment-${{ github.ref }} 
-  cancel-in-progress: true 
- 
-jobs: 
-  maven_build: 
-    strategy: 
-      matrix: 
-        version: [11, 8] 
-    runs-on: ubuntu-latest 
- 
-    steps: 
-      - uses: actions/checkout@v3 
- 
-      - name: Set up JDK "${{ matrix.version }}" 
-        uses: actions/setup-java@v3 
-        with: 
-          java-version: "${{ matrix.version }}" 
+name: scp files
+on:
+  push:
+    branches:
+      - latest
 
-          distribution: 'temurin' 
+env:
+  TARGET_DIR: /home/github/test
 
-          cache: maven 
- 
-      - name: Cache Maven Dependencies 
-        uses: actions/cache@v3 
-        with: 
-          path: ~/.m2 
-          key: ${{ runner.os }}-cache 
- 
-      - name: Build with Maven 
-        run: mvn -B package --file pom.xml
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v1
+
+      - name: ssh scp ssh pipelines
+        uses: cross-the-world/ssh-scp-ssh-pipelines@latest
+        env:
+          WELCOME: "ssh scp ssh pipelines"
+          LASTSSH: "Doing something after copying"
+        with:
+          host: ${{ secrets.DC_HOST }}
+          user: ${{ secrets.DC_USER }}
+          pass: ${{ secrets.DC_PASS }}
+          port: ${{ secrets.DC_PORT }}
+          connect_timeout: 10s
+          first_ssh: |-
+            rm -rf /home/github/test  
+            ls -la 
+            echo $WELCOME   
+            mkdir -p /home/github/test/test1 &&    
+            mkdir -p /home/github/test/test2 &&
+          scp: |-
+            './test/*' => /home/github/test/
+            ./test/test1* => $TARGET_DIR/test1/
+            ./test/test*.csv => "/home/github/test/test2/"
+          last_ssh: |-
+            echo $LASTSSH &&
+            (mkdir test1/test || true)
+            ls -la
+
+      - name: scp ssh pipelines
+        uses: cross-the-world/ssh-scp-ssh-pipelines@latest
+        env:
+          LASTSSH: "Doing something after copying"
+        with:
+          host: ${{ secrets.DC_HOST }}
+          user: ${{ secrets.DC_USER }}
+          pass: ${{ secrets.DC_PASS }}
+          scp: |-
+            ./test/test1* => /home/github/test/test1/
+            "." => "$TARGET_DIR/test3/"
+          last_ssh: |-
+            echo $LASTSSH
+            ls -la
+
+      - name: scp pipelines
+        uses: cross-the-world/ssh-scp-ssh-pipelines@latest
+        env:
+          WELCOME: "scp pipelines"
+          TO_DIR: /home/github/test/test4
+        with:
+          host: ${{ secrets.DC_HOST }}
+          user: ${{ secrets.DC_USER }}
+          pass: ${{ secrets.DC_PASS }}
+          scp: |-
+            '.' => $TO_DIR
